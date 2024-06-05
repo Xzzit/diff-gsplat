@@ -218,7 +218,6 @@ def main(height: int = 256, width: int = 256, num_points: int = 100000,
     
     trainer = SimpleTrainer(gt_image=gt_image, num_points=num_points)
     trainer.train(iterations=iterations, lr=lr, save_imgs=save_imgs)
-    trainer.load_ply()
 
 
 if __name__ == "__main__":
