@@ -12,15 +12,13 @@ from gsplat.rasterize import rasterize_gaussians
 from PIL import Image
 from torch import Tensor, optim
 
+from loss_utils import l1_loss, l2_loss, ssim
+
 
 class SimpleTrainer:
     """Trains random gaussians to fit an image."""
 
-    def __init__(
-        self,
-        gt_image: Tensor,
-        num_points: int = 2000,
-    ):
+    def __init__(self, gt_image: Tensor, num_points: int = 2000):
         self.device = torch.device("cuda:0")
         self.gt_image = gt_image.to(device=self.device)
         self.num_points = num_points
@@ -34,38 +32,33 @@ class SimpleTrainer:
 
     def _init_gaussians(self):
         """Random gaussians"""
-        bd = 2
+        self.means = 2 * (torch.rand(self.num_points, 3, device=self.device) - 0.5)
 
-        self.means = bd * (torch.rand(self.num_points, 3, device=self.device) - 0.5)
         self.scales = torch.rand(self.num_points, 3, device=self.device)
-        d = 3
-        self.rgbs = torch.rand(self.num_points, d, device=self.device)
+        
+        channel = 3
+        self.rgbs = torch.rand(self.num_points, channel, device=self.device)
 
         u = torch.rand(self.num_points, 1, device=self.device)
         v = torch.rand(self.num_points, 1, device=self.device)
         w = torch.rand(self.num_points, 1, device=self.device)
-
-        self.quats = torch.cat(
-            [
-                torch.sqrt(1.0 - u) * torch.sin(2.0 * math.pi * v),
-                torch.sqrt(1.0 - u) * torch.cos(2.0 * math.pi * v),
-                torch.sqrt(u) * torch.sin(2.0 * math.pi * w),
-                torch.sqrt(u) * torch.cos(2.0 * math.pi * w),
-            ],
-            -1,
-        )
+        self.quats = torch.cat([
+            torch.sqrt(1.0 - u) * torch.sin(2.0 * math.pi * v),
+            torch.sqrt(1.0 - u) * torch.cos(2.0 * math.pi * v),
+            torch.sqrt(u) * torch.sin(2.0 * math.pi * w),
+            torch.sqrt(u) * torch.cos(2.0 * math.pi * w)
+            ], -1)
+        
         self.opacities = torch.ones((self.num_points, 1), device=self.device)
 
-        self.viewmat = torch.tensor(
-            [
-                [1.0, 0.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0, 0.0],
-                [0.0, 0.0, 1.0, 8.0],
-                [0.0, 0.0, 0.0, 1.0],
-            ],
-            device=self.device,
-        )
-        self.background = torch.zeros(d, device=self.device)
+        self.viewmat = torch.tensor([
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 8.0],
+            [0.0, 0.0, 0.0, 1.0]
+            ], device=self.device)
+        
+        self.background = torch.zeros(3, device=self.device)
 
         self.means.requires_grad = True
         self.scales.requires_grad = True
@@ -74,63 +67,37 @@ class SimpleTrainer:
         self.opacities.requires_grad = True
         self.viewmat.requires_grad = False
 
-    def train(
-        self,
-        iterations: int = 1000,
-        lr: float = 0.01,
-        save_imgs: bool = False,
-        B_SIZE: int = 14,
-    ):
+    def train(self, iterations: int = 1000, lr: float = 0.01,
+        save_imgs: bool = False, B_SIZE: int = 16,):
         optimizer = optim.Adam(
-            [self.rgbs, self.means, self.scales, self.opacities, self.quats], lr
-        )
-        mse_loss = torch.nn.MSELoss()
+            [self.rgbs, self.means, self.scales, self.opacities, self.quats], lr)
         frames = []
         times = [0] * 3  # project, rasterize, backward
-        B_SIZE = 16
         for iter in range(iterations):
+            # project_gaussians
             start = time.time()
-            (
-                xys,
-                depths,
-                radii,
-                conics,
-                compensation,
-                num_tiles_hit,
-                cov3d,
-            ) = project_gaussians(
-                self.means,
-                self.scales,
-                1,
-                self.quats / self.quats.norm(dim=-1, keepdim=True),
-                self.viewmat,
-                self.focal,
-                self.focal,
-                self.W / 2,
-                self.H / 2,
-                self.H,
-                self.W,
-                B_SIZE,
-            )
+            (xys, depths, radii, conics,
+             compensation, num_tiles_hit, cov3d) = project_gaussians(
+                 self.means, self.scales, 1, self.quats/self.quats.norm(dim=-1, keepdim=True),
+                 self.viewmat, self.focal, self.focal, self.W/2, self.H/2, self.H, self.W, B_SIZE)
             torch.cuda.synchronize()
             times[0] += time.time() - start
+
+            # rasterize_gaussians
             start = time.time()
             out_img = rasterize_gaussians(
-                xys,
-                depths,
-                radii,
-                conics,
-                num_tiles_hit,
-                torch.sigmoid(self.rgbs),
-                torch.sigmoid(self.opacities),
-                self.H,
-                self.W,
-                B_SIZE,
-                self.background,
-            )[..., :3]
+                xys, depths, radii, conics,
+                num_tiles_hit, torch.sigmoid(self.rgbs), torch.sigmoid(self.opacities),
+                self.H, self.W, B_SIZE, self.background
+                )[..., :3]
             torch.cuda.synchronize()
             times[1] += time.time() - start
-            loss = mse_loss(out_img, self.gt_image)
+
+            ratio = 0.1
+            loss = ratio * ssim(out_img, self.gt_image) +\
+            (1 - ratio) * l1_loss(out_img, self.gt_image) +\
+            l2_loss(out_img, self.gt_image)
+
             optimizer.zero_grad()
             start = time.time()
             loss.backward()
