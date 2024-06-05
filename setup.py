@@ -9,8 +9,6 @@ from setuptools import find_packages, setup
 __version__ = None
 exec(open("gsplat/version.py", "r").read())
 
-URL = "https://github.com/nerfstudio-project/gsplat"  # TODO
-
 BUILD_NO_CUDA = os.getenv("BUILD_NO_CUDA", "0") == "1"
 WITH_SYMBOLS = os.getenv("WITH_SYMBOLS", "0") == "1"
 LINE_INFO = os.getenv("LINE_INFO", "0") == "1"
@@ -31,13 +29,7 @@ def get_extensions():
     sources = glob.glob(osp.join(extensions_dir, "*.cu")) + glob.glob(
         osp.join(extensions_dir, "*.cpp")
     )
-    # sources = [
-    #     osp.join(extensions_dir, "ext.cpp"),
-    #     osp.join(extensions_dir, "rasterize.cu"),
-    #     osp.join(extensions_dir, "bindings.cu"),
-    #     osp.join(extensions_dir, "forward.cu"),
-    #     osp.join(extensions_dir, "backward.cu"),
-    # ]
+
     # remove generated 'hip' files, in case of rebuilds
     sources = [path for path in sources if "hip" not in path]
 
@@ -105,8 +97,6 @@ setup(
     version=__version__,
     description=" Python package for differentiable rasterization of gaussians",
     keywords="gaussian, splatting, cuda",
-    url=URL,
-    download_url=f"{URL}/archive/gsplat-{__version__}.tar.gz",
     python_requires=">=3.7",
     install_requires=[
         "numpy",
