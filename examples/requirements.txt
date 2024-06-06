@@ -2,3 +2,4 @@ numpy
 tyro
 Pillow
 plyfile
+Ninja
