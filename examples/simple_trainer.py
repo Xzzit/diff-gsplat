@@ -8,6 +8,7 @@ import torch
 from torch import optim
 import tyro
 from PIL import Image
+from torchvision.utils import save_image
 
 from loss_utils import l1_loss, l2_loss, ssim
 from model import GaussianModel
@@ -52,11 +53,12 @@ def train(gaussian: GaussianModel, gt_image: torch.Tensor,
         times[1] += time.time() - start
 
         ratio = 0.1
-        loss = ratio * ssim(out_img, gt_image) +\
-        (1 - ratio) * l1_loss(out_img, gt_image) +\
-        l2_loss(out_img, gt_image)
+        # loss = ratio * ssim(out_img, gt_image) +\
+        # (1 - ratio) * l1_loss(out_img, gt_image) +\
+        # l2_loss(out_img, gt_image)
+        loss = l1_loss(out_img, gt_image)
 
-        optimizer.zero_grad()
+        optimizer.zero_grad()   
         start = time.time()
         loss.backward()
         torch.cuda.synchronize()
@@ -95,6 +97,9 @@ def main(height: int = 256, width: int = 256, num_points: int = 100000,
         gt_image[: height // 2, : width // 2, :] = torch.tensor([1.0, 0.0, 0.0])
         gt_image[height // 2 :, width // 2 :, :] = torch.tensor([0.0, 0.0, 1.0])
     
+    out_dir = os.path.join(os.getcwd(), "renders")
+    os.makedirs(out_dir, exist_ok=True)
+    save_image(gt_image.permute(2, 0, 1), f'{out_dir}/gt_image.png')
     gt_image = gt_image.to('cuda:0')
 
     fov_x = math.pi / 2.0

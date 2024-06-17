@@ -27,7 +27,7 @@ def render(gaussian, B_SIZE: int = 16, i: int = 0):
 
 def main():
     gaussian = GaussianModel(render=True)
-    for i in range(16):
+    for i in range(gaussian.means.shape[0]):
         render(gaussian, i=i)
 
 

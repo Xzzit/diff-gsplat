@@ -11,6 +11,15 @@ class GaussianModel:
 
     def __init__(self, num_points: int = 2000, camera: list = {}, render: bool = False):
         self.device = 'cuda:0'
+        self.viewmat = torch.tensor([
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 8.0],
+            [0.0, 0.0, 0.0, 1.0]
+            ], device=self.device)
+        self.viewmat.requires_grad = False
+        self.background = torch.zeros(3, device=self.device)
+        
         if not render:
             self.num_points = num_points
             self.H = camera[0]
@@ -42,21 +51,11 @@ class GaussianModel:
         
         self.opacities = torch.ones((self.num_points, 1), device=self.device)
 
-        self.viewmat = torch.tensor([
-            [1.0, 0.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0, 0.0],
-            [0.0, 0.0, 1.0, 8.0],
-            [0.0, 0.0, 0.0, 1.0]
-            ], device=self.device)
-        
-        self.background = torch.zeros(3, device=self.device)
-
         self.means.requires_grad = True
         self.scales.requires_grad = True
         self.quats.requires_grad = True
         self.rgbs.requires_grad = True
         self.opacities.requires_grad = True
-        self.viewmat.requires_grad = False
 
     def save_camera(self):
         out_dir = os.path.join(os.getcwd(), "renders")
@@ -78,15 +77,6 @@ class GaussianModel:
         self.H = camera_info['H']
         self.W = camera_info['W']
         self.focal = camera_info['focal']
-
-        self.viewmat = torch.tensor([
-            [1.0, 0.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0, 0.0],
-            [0.0, 0.0, 1.0, 8.0],
-            [0.0, 0.0, 0.0, 1.0]
-            ], device=self.device)
-        
-        self.background = torch.zeros(3, device=self.device)
 
     def construct_list_of_attributes(self):
         l = ['x', 'y', 'z']
