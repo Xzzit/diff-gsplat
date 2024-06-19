@@ -18,7 +18,7 @@ class GaussianModel:
             [0.0, 0.0, 0.0, 1.0]
             ], device=self.device)
         self.viewmat.requires_grad = False
-        self.background = torch.zeros(3, device=self.device)
+        self.background = torch.ones(3, device=self.device)
         
         if not render:
             self.num_points = num_points
@@ -90,7 +90,7 @@ class GaussianModel:
             l.append('rotation{}'.format(i))
         return l
 
-    def save_ply(self):
+    def save_ply(self, name='points.ply'):
         xyz = self.means.detach().cpu().numpy()
         color = self.rgbs.detach().cpu().numpy()
         opacity = self.opacities.detach().cpu().numpy()
@@ -106,13 +106,13 @@ class GaussianModel:
         current_dir = os.path.dirname(os.path.abspath(__file__))
         output_dir = os.path.join(current_dir, 'renders')
         os.makedirs(output_dir, exist_ok=True)
-        output_file = os.path.join(output_dir, 'points.ply')
+        output_file = os.path.join(output_dir, name)
         PlyData([el]).write(output_file)
         print(f"Saved ply file to {output_file}")
 
-    def load_ply(self):
+    def load_ply(self, name='points.ply'):
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        ply_file_path = os.path.join(current_dir, 'renders', 'points.ply')
+        ply_file_path = os.path.join(current_dir, 'renders', name)
         plydata = PlyData.read(ply_file_path)
 
         xyz = np.stack((np.asarray(plydata.elements[0]["x"]),
