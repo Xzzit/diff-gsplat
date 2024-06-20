@@ -9,7 +9,7 @@ from plyfile import PlyData, PlyElement
 class GaussianModel:
     """Trains random gaussians to fit an image."""
 
-    def __init__(self, num_points: int = 2000, camera: list = {}, render: bool = False):
+    def __init__(self, num_points: int = 2000, camera: list = {}, render: bool = False, features = None):
         self.device = 'cuda:0'
         self.viewmat = torch.tensor([
             [1.0, 0.0, 0.0, 0.0],
@@ -29,6 +29,14 @@ class GaussianModel:
         else:
             self.load_camera()
             self.load_ply()
+
+        if features:
+            self.load_camera()
+            self.means = features[0]
+            self.scales = features[1]
+            self.rgbs = features[2]
+            self.quats = features[3]
+            self.opacities = features[4]
 
     def _init_gaussians(self):
         """Random gaussians"""

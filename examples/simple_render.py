@@ -9,7 +9,6 @@ from gsplat.rasterize import rasterize_gaussians
 
 from add_gaussian import add_gaussian
 def render(gaussian, B_SIZE: int = 16):
-    gaussian = add_gaussian(gaussian, 5)
 
     (xys, depths, radii, conics,
         compensation, num_tiles_hit, cov3d) = project_gaussians(
