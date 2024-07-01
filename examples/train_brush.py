@@ -25,18 +25,29 @@ def image_path_to_tensor(image_path: Path):
     img_tensor = transform(img).permute(1, 2, 0)[..., :3]
     return img_tensor
 
-def train(gaussian: GaussianModel, gt_image: torch.Tensor,
+def train(old_gaussian: GaussianModel, gt_image: torch.Tensor,
           iterations: int = 1000, lr: float = 0.01,
           save_imgs: bool = True, B_SIZE: int = 16):
     
     # For mlp
     brush = BrushModel(100)
     brush = brush.to('cuda')
-    features = brush(gaussian)
+    features = brush(old_gaussian)
+    gaussian = GaussianModel(render=True, features=features)
     optimizer = optim.Adam(brush.parameters(), lr)
 
     # For add_gaussian
+    """ Before
+    gaussian.means.requires_grad -> False
+    gaussian.means.shape -> [1, 3]
+    gaussian.means.grad -> None
+    """
     # gaussian = add_gaussian(gaussian, 100)
+    """ After
+    gaussian.means.requires_grad -> True
+    gaussian.means.shape -> [101, 3]
+    gaussian.means.grad -> None
+    """
     # optimizer = optim.Adam(
     #     [gaussian.rgbs, gaussian.means, gaussian.scales, gaussian.opacities, gaussian.quats], lr)
     
@@ -71,6 +82,10 @@ def train(gaussian: GaussianModel, gt_image: torch.Tensor,
         optimizer.zero_grad()   
         start = time.time()
         loss.backward()
+        """ (add_gaussian)After
+        gaussian.means.grad -> tensor
+        gaussian.means.grad.shape -> [101, 3]
+        """
         torch.cuda.synchronize()
         times[2] += time.time() - start
 
