@@ -32,28 +32,15 @@ def train(old_gaussian: GaussianModel, gt_image: torch.Tensor,
     # For mlp
     brush = BrushModel(100)
     brush = brush.to('cuda')
-    features = brush(old_gaussian)
-    gaussian = GaussianModel(render=True, features=features)
     optimizer = optim.Adam(brush.parameters(), lr)
-
-    # For add_gaussian
-    """ Before
-    gaussian.means.requires_grad -> False
-    gaussian.means.shape -> [1, 3]
-    gaussian.means.grad -> None
-    """
-    # gaussian = add_gaussian(gaussian, 100)
-    """ After
-    gaussian.means.requires_grad -> True
-    gaussian.means.shape -> [101, 3]
-    gaussian.means.grad -> None
-    """
-    # optimizer = optim.Adam(
-    #     [gaussian.rgbs, gaussian.means, gaussian.scales, gaussian.opacities, gaussian.quats], lr)
+    gaussian = GaussianModel(render=True)
     
     frames = []
     times = [0] * 3  # project, rasterize, backward
     for iter in range(iterations):
+        # MLP
+        gaussian = brush(old_gaussian, gaussian)
+
         # project_gaussians
         start = time.time()
         (xys, depths, radii, conics,
@@ -89,17 +76,6 @@ def train(old_gaussian: GaussianModel, gt_image: torch.Tensor,
         torch.cuda.synchronize()
         times[2] += time.time() - start
 
-        # if gaussian.means.grad[0] is not None:
-        #     gaussian.means.grad[0].zero_()
-        # if gaussian.scales.grad[0] is not None:
-        #     gaussian.scales.grad[0].zero_()
-        # if gaussian.quats.grad[0] is not None:
-        #     gaussian.quats.grad[0].zero_()
-        # if gaussian.rgbs.grad[0] is not None:
-        #     gaussian.rgbs.grad[0].zero_()
-        # if gaussian.opacities.grad[0] is not None:
-        #     gaussian.opacities.grad[0].zero_()
-
         optimizer.step()
         print(f"Iteration {iter + 1}/{iterations}, Loss: {loss.item()}")
 
@@ -109,6 +85,11 @@ def train(old_gaussian: GaussianModel, gt_image: torch.Tensor,
     with torch.no_grad():
         gaussian.save_ply(name="points_brush.ply")
         gaussian.save_camera()
+
+        # save mlp
+        out_dir = os.path.join(os.getcwd(), "renders")
+        os.makedirs(out_dir, exist_ok=True)
+        torch.save(brush.state_dict(), f"{out_dir}/brush.pth")
 
         if save_imgs:
             # save them as a gif with PIL

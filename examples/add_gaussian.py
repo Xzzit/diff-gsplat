@@ -47,12 +47,18 @@ class BrushModel(nn.Module):
             nn.Linear(128, 1)
         ) for _ in range(num_points)])
     
-    def forward(self, gaussian: GaussianModel):
-        means = torch.cat([mlp(gaussian.means) for mlp in self.mlp_means], 0)
-        scales = torch.cat([mlp(gaussian.scales) for mlp in self.mlp_scales], 0)
-        rgbs = torch.cat([mlp(gaussian.rgbs) for mlp in self.mlp_rgbs], 0)
-        quats = torch.cat([mlp(gaussian.quats) for mlp in self.mlp_quats], 0)
-        opacities = torch.cat([mlp(gaussian.opacities) for mlp in self.mlp_opacities], 0)
+    def forward(self, old_gaussian: GaussianModel, gaussian: GaussianModel):
+        means = torch.cat([mlp(old_gaussian.means) for mlp in self.mlp_means], 0)
+        scales = torch.cat([mlp(old_gaussian.scales) for mlp in self.mlp_scales], 0)
+        rgbs = torch.cat([mlp(old_gaussian.rgbs) for mlp in self.mlp_rgbs], 0)
+        quats = torch.cat([mlp(old_gaussian.quats) for mlp in self.mlp_quats], 0)
+        opacities = torch.cat([mlp(old_gaussian.opacities) for mlp in self.mlp_opacities], 0)
+
+        gaussian.means = means
+        gaussian.scales = scales
+        gaussian.rgbs = rgbs
+        gaussian.quats = quats
+        gaussian.opacities = opacities
 
         # gaussian.means = torch.cat([gaussian.means, means], 0)
         # gaussian.scales = torch.cat([gaussian.scales, scales], 0)
@@ -60,7 +66,7 @@ class BrushModel(nn.Module):
         # gaussian.quats = torch.cat([gaussian.quats, quats], 0)
         # gaussian.opacities = torch.cat([gaussian.opacities, opacities], 0)
 
-        return [means, scales, rgbs, quats, opacities]
+        return gaussian
 
 def add_gaussian(gaussian: GaussianModel, num_points: int = 10):
 
